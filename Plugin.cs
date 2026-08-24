@@ -351,13 +351,7 @@ public class Plugin : BaseUnityPlugin
     {
         static bool Prefix(Trinket __instance, ref bool __result)
         {
-            //TODO: Find the ID that must be added to gamemode exclude to prevent bindings from rendering
-            if (__instance.name.Split("_")[0] == "binding")
-            {
-                __instance.icon = null;
-                __instance.lockIcon = null;
-                return true;
-            }
+            //TODO: block the bindings from rendering
 
             if (APItems.TrinketUnlocks.TryGetValue(__instance.name, out var unlock))
             {
@@ -391,21 +385,21 @@ public class Plugin : BaseUnityPlugin
             int reg = APItems.ProgressiveRegions;
             Logger.LogInfo("Current Progressive Region Count: " + reg);
 
-            if (reg < 1 & (currLvl == "Campaign_Interlude_Silo_To_Pipeworks_01" & __instance.name == "Button.002" ||
-                currLvl == "Campaign_Interlude_Sink_To_Pipeworks_01" & __instance.name == "Prop_Button_02_Switch.01"))
+            if (reg < 1 && (currLvl == "Campaign_Interlude_Silo_To_Pipeworks_01" && __instance.name == "Button.002" ||
+                            currLvl == "Campaign_Interlude_Sink_To_Pipeworks_01" && __instance.name == "Prop_Button_02_Switch.01"))
             {
                 return false;
             }
-            if (reg < 2 & (currLvl == "M3_Habitation_Shaft_Intro" & __instance.name == "Prop_Button_03_Door" ||
-                currLvl == "Campaign_Interlude_Chute_To_Habitation" & __instance.name == "Prop_Button_04"))
+            if (reg < 2 && (currLvl == "M3_Habitation_Shaft_Intro" && __instance.name == "Prop_Button_03_Door" ||
+                            currLvl == "Campaign_Interlude_Chute_To_Habitation" && __instance.name == "Prop_Button_04"))
             {
                 return false;
             }
-            if (reg < 3 & currLvl == "Campaign_Interlude_Habitation_To_Abyss_01" & __instance.name == "Prop_Button_03.01")
+            if (reg < 3 && currLvl == "Campaign_Interlude_Habitation_To_Abyss_01" && __instance.name == "Prop_Button_03.01")
             {
                 return false;
             }
-            return !(reg < 4 & currLvl == "Campaign_Interlude_Abyss_To_Nest_01_SafeArea" & __instance.name == "Prop_Button_03");
+            return !(reg < 4 & currLvl == "Campaign_Interlude_Abyss_To_Nest_01_SafeArea" && __instance.name == "Prop_Button_03");
         }
         
         

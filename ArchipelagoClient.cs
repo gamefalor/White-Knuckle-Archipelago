@@ -78,7 +78,7 @@ public class ArchipelagoClient
         
         try
         {
-            result = await Task.Run(() => _session.TryConnectAndLogin("White Knuckle", _username, ItemsHandlingFlags.AllItems));
+            result = _session.TryConnectAndLogin("White Knuckle", _username, ItemsHandlingFlags.AllItems);
         }
         catch (Exception e)
         {
@@ -104,6 +104,8 @@ public class ArchipelagoClient
             return null;
         }
         
+        Connected = true;
+        
         var loginSuccess = (LoginSuccessful)result;
         _slot = loginSuccess.Slot;
 
@@ -122,7 +124,6 @@ public class ArchipelagoClient
         CommandConsole.Log($"Successfully connected to {_servername} as {_username}!");
         CommandConsole.Log($"   Slot Number: {loginSuccess.Slot}");
         
-        Connected = true;
         _connectedBefore = true;
         
         return null;
