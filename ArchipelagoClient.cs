@@ -1,17 +1,25 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Linq;
-using System.Threading;
-using Archipelago.MultiClient.Net;
+﻿using Archipelago.MultiClient.Net;
+using Archipelago.MultiClient.Net.BounceFeatures.DeathLink;
 using Archipelago.MultiClient.Net.Enums;
-using System.Threading.Tasks;
 using Archipelago.MultiClient.Net.Exceptions;
 using Archipelago.MultiClient.Net.Helpers;
 using Archipelago.MultiClient.Net.MessageLog.Messages;
 using Archipelago.MultiClient.Net.Models;
+using BepInEx;
 using HarmonyLib;
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.IO;
+using System.Linq;
+using System.Linq.Expressions;
+using System.Numerics;
+using System.Runtime.CompilerServices;
+using System.Threading;
+using System.Threading.Tasks;
 using UnityEngine;
+using static CL_GameTracker;
+using static SessionEventModule_SendMessageToModules;
 
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
 
@@ -23,15 +31,17 @@ public class ArchipelagoClient
     private static string _servername = "localhost:38281";
     private static string _username = string.Empty;
     private static string _password = string.Empty;
+    public static DeathLinkService _deathlinkservice;
     
     private static bool _connectedBefore;
     public static bool Connected;
     private static int _reconnectAttempts = 0;
     private static int _slot = -1;
 
+    private static Dictionary<string, object> slotData; // might be needed later, who knows? i do, i need it later
+
     private static Queue<ItemInfo> _items = [];
     private static List<long> _locationsToSend = [];
-    
 
     private static void NewSession(string server)
     {
@@ -123,9 +133,16 @@ public class ArchipelagoClient
         
         CommandConsole.Log($"Successfully connected to {_servername} as {_username}!");
         CommandConsole.Log($"   Slot Number: {loginSuccess.Slot}");
-        
+
+        slotData = loginSuccess.SlotData;
+        FillOptions();
+
         _connectedBefore = true;
-        
+
+        _deathlinkservice = _session.CreateDeathLinkService();
+        _deathlinkservice.OnDeathLinkReceived += (deathLinkObject) => {
+            Deathlink.ProcDeathlink(deathLinkObject);
+        };
         return null;
     }
 
@@ -161,6 +178,8 @@ public class ArchipelagoClient
 
             await Connect();
         }
+
+        slotData = new();
 
         return null;
     }
@@ -291,5 +310,56 @@ public class ArchipelagoClient
         }
     }
 
+    // writes all options from the ap server into variables accessible here
+    private static void FillOptions()
+    {
+        string slotDataLogger = "";
+        foreach (string I in slotData.Keys)
+        {
+            slotDataLogger += $"{I}: {slotData[I]} ({slotData[I].GetType()})\n"; 
+        }
+        Plugin.Logger.LogInfo(slotDataLogger);
+        Plugin.Logger.LogInfo(Convert.ToString((bool)_session.DataStorage[Scope.Slot, "ConnectedOnce"]));
 
+        _session.DataStorage[Scope.Slot, "ConnectedOnce"].Initialize(false); // sets it to be SOMETHING
+
+        Plugin.ClientOptions.LoadOptions();
+
+        if (!_session.DataStorage[Scope.Slot, "ConnectedOnce"])
+        {
+            Plugin.Logger.LogInfo("First connection detecting, setting any client data");
+            SetClientOptions(new string[1]); // feels like evil coding, im sure this wont cause weird shit right?
+        }
+
+        _session.DataStorage[Scope.Slot, "ConnectedOnce"] = true; //causes client settings to not be changed upon future connections
+    }
+    
+    public static void SetClientOptions(string[] args)
+    {
+        try
+        {
+            // why isnt this a switch block?? fuck if i know but it stopped working when i tried it
+            if (Convert.ToInt32(slotData["deathlink"]) == 0)
+            {
+                Plugin.ClientOptions.EnableDeathlink();
+            }
+            else if (Convert.ToInt32(slotData["deathlink"]) == 1)
+            {
+                Plugin.ClientOptions.DisableDeathlink();
+            }
+        } catch { Plugin.Logger.LogInfo("Deathlink not found, skipping"); }
+
+        try
+        {
+            if (Convert.ToInt32(slotData["deathlink_amnesty"]) != 0)
+            {
+                Plugin.ClientOptions.deathlink_amnesty = Convert.ToInt32(slotData["deathlink_amnesty"]);
+            }
+        } catch { Plugin.Logger.LogInfo("Deathlink amnesty not found, skipping"); }
+
+        Plugin.ClientOptions.SaveOptions();
+        if (Plugin.ClientOptions.deathlink) {_deathlinkservice.EnableDeathLink();}
+    }
+
+    public event DeathLinkService.DeathLinkReceivedHandler OnDeathLinkReceived { add { } remove { } }
 }
