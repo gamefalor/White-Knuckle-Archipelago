@@ -68,7 +68,7 @@ public class CustomPerks
         _apDebuff.stackMax = 100;
         _apDebuff.useBuff = true;
         _apDebuff.buffMultiplier = 1;
-        _apDebuff.multiplierCurve = AnimationCurve.Constant(0, 1, 1);
+        _apDebuff.multiplierCurve = CreateExponentialDecayCurve(0.96f);
         _apDebuff.modules = new List<PerkModule>();
         _apDebuff.stackAmount = stacks;
         _apDebuff.buff = new BuffContainer

@@ -1,6 +1,10 @@
 ﻿using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using Archipelago.MultiClient.Net.Models;
+using UnityEngine;
 using UnityEngine.UI;
+using Color = UnityEngine.Color;
 
 namespace WKRando;
 
@@ -8,7 +12,8 @@ public class APItems
 {
     public static int ProgressiveRegions;
     public static int ProgressivePerkUnlocks;
-    public static int TotalBuffs = 0;
+    public static int TargetAPDebuffCount = 10;
+    public static int TrinketSlots = 5;
     
     // Stores flags for facility data to override ingame 
     public static Dictionary<string, Dictionary<string, bool>> FacilityDict { get; set; } =
@@ -92,9 +97,10 @@ public class APItems
         }
     }
 
-    public static void UpdateFromId(long id)
+    public static void UpdateFromItem(ItemInfo item)
     {
-        Plugin.Logger.LogInfo("Attempting to update from AP Item: " + id);
+        long id = item.ItemId;
+        Plugin.Logger.LogInfo("Attempting to update from AP Item: " + item.ItemDisplayName);
         //Facility
         if (0xAAFFFFF >= id & id >= 0xAA11000 || id == 0xAA10000 || id == 0xAA10009)
         {
@@ -131,12 +137,21 @@ public class APItems
                 ProgressiveRegions += 1;
                 break;
             case 0xA900020:
-                TotalBuffs += 1;
+                TargetAPDebuffCount -= 1;
                 break;
             case 0xA900030:
                 ProgressivePerkUnlocks += 1;
                 break;
         }
+    }
+
+    public static void ShowReceivePopup(Sprite image, ItemInfo item)
+    {
+        CL_ProgressionManager.ShowUnlockPopup(
+            image,
+            $"Received {item.ItemDisplayName}",
+            $"from game {item.LocationGame} at {item.LocationDisplayName}",
+            new Color(0f, 0.1f, 0f));
     }
 
     public static List<long> CheckFacilities()
@@ -697,47 +712,23 @@ public class APItems
         ["Mode Selection Button - Silos"] = false,
         ["Mode Selection Button - Pipeworks"] = false,
         ["Mode Selection Button - Habitation"] = false,
-        ["Mode Selection Button - Abyss"] = true,
+        ["Mode Selection Button - Abyss"] = false,
         ["Mode Selection Button - Nest"] = false,
-        ["Mode Selection Button - Challenge 01 - Advanced Course"] = false,
-        ["Mode Selection Button - Challenge 02 - Shattered"] = false,
-        ["Mode Selection Button - Challenge 03 - Roach Run"] = false,
+        ["Mode Selection Button - Challenge 01 - Advanced Course"] = true,
+        ["Mode Selection Button - Challenge 02 - Shattered"] = true,
+        ["Mode Selection Button - Challenge 03 - Roach Run"] = true,
         ["Mode Selection Button - Challenge 04 - Comms"] = false,
         ["Mode Selection Button - Challenge 05 - Shutter"] = false,
         ["Mode Selection Button - Challenge 06 - Boost"] = false,
         ["Mode Selection Button - Chimney"] = false,
         ["Mode Selection Button - Parasite.01"] = false,
     };
-
-    public static Dictionary<long, string> APIDtoModeUnlock = new Dictionary<long, string>()
-    {
-        [0xAE00000] = "Mode Selection Button - Campaign Variant",
-        [0xAE00001] = "Mode Selection Button - Training Sector",
-        [0xAE00002] = "Mode Selection Button - Endless",
-        [0xAE00003] = "Mode Selection Button - Endless Underworks",
-        [0xAE00004] = "Mode Selection Button - Endless Superstructure",
-        [0xAE00005] = "Mode Selection Button - Silos",
-        [0xAE00006] = "Mode Selection Button - Pipeworks",
-        [0xAE00007] = "Mode Selection Button - Habitation",
-        [0xAE00008] = "Mode Selection Button - Abyss",
-        [0xAE00009] = "Mode Selection Button - Nest",
-        
-        [0xAE0000A] = "Mode Selection Button - Challenge 01 - Advanced Course",
-        [0xAE0000B] = "Mode Selection Button - Challenge 02 - Shattered",
-        [0xAE0000C] = "Mode Selection Button - Challenge 03 - Roach Run",
-        [0xAE0000E] = "Mode Selection Button - Challenge 04 - Comms",
-        [0xAE0000F] = "Mode Selection Button - Challenge 05 - Shutter",
-        [0xAE00010] = "Mode Selection Button - Challenge 06 - Boost",
-        
-        [0xAE00011] = "Mode Selection Button - Chimney",
-        [0xAE00012] = "Mode Selection Button - Parasite.01"
-    };
     
     public static Dictionary<string, bool> TrinketUnlocks = new Dictionary<string, bool>()
     {
-        ["Trinket_Beta"] = false,
-        ["Trinket_Carabiner"] = false,
-        ["Trinket_Chalk"] = false,
+        ["Trinket_Beta"] = true,
+        ["Trinket_Carabiner"] = true,
+        ["Trinket_Chalk"] = true,
         ["Trinket_EmployeeID"] = false,
         ["Trinket_GoldNugget"] = false,
         ["Trinket_MassDamper"] = false,
@@ -768,7 +759,74 @@ public class APItems
         [0xAD0000C] = "Trinket_Helmet",
         [0xAD0000D] = "Trinket_CalmingBuddy"
     };
+    
+    public static Dictionary<long, string> APIDtoModeUnlock = new Dictionary<long, string>()
+    {
+        [0xAE00000] = "Mode Selection Button - Campaign Variant",
+        [0xAE00001] = "Mode Selection Button - Training Sector",
+        [0xAE00002] = "Mode Selection Button - Endless",
+        [0xAE00003] = "Mode Selection Button - Endless Underworks",
+        [0xAE00004] = "Mode Selection Button - Endless Superstructure",
+        [0xAE00005] = "Mode Selection Button - Silos",
+        [0xAE00006] = "Mode Selection Button - Pipeworks",
+        [0xAE00007] = "Mode Selection Button - Habitation",
+        [0xAE00008] = "Mode Selection Button - Abyss",
+        [0xAE00009] = "Mode Selection Button - Nest",
+        
+        [0xAE0000A] = "Mode Selection Button - Challenge 01 - Advanced Course",
+        [0xAE0000B] = "Mode Selection Button - Challenge 02 - Shattered",
+        [0xAE0000C] = "Mode Selection Button - Challenge 03 - Roach Run",
+        [0xAE0000E] = "Mode Selection Button - Challenge 04 - Comms",
+        [0xAE0000F] = "Mode Selection Button - Challenge 05 - Shutter",
+        [0xAE00010] = "Mode Selection Button - Challenge 06 - Boost",
+        
+        [0xAE00011] = "Mode Selection Button - Chimney",
+        [0xAE00012] = "Mode Selection Button - Parasite.01"
+    };
 
+    public static Dictionary<string, long> ChallengeMedaltoAPID = new Dictionary<string, long>()
+    {
+        ["Advanced Course 1"] = 0xAE00000,
+        ["Advanced Course 2"] = 0xAE00001,
+        ["Advanced Course 3"] = 0xAE00002,
+        ["Advanced Course 4"] = 0xAE00003,
+        
+        ["Fractured Territory 1"] =  0xAE00014,
+        ["Fractured Territory 2"] =  0xAE00015,
+        ["Fractured Territory 3"] =  0xAE00016,
+        ["Fractured Territory 4"] =  0xAE00017,
+        
+        ["Roach Run 1"] = 0xAE00020,
+        ["Roach Run 2"] = 0xAE00021,
+        ["Roach Run 3"] = 0xAE00022,
+        ["Roach Run 4"] = 0xAE00023,
+        
+        ["Comms Array 1"] = 0xAE00030,
+        ["Comms Array 2"] = 0xAE00031,
+        ["Comms Array 3"] = 0xAE00032,
+        ["Comms Array 4"] = 0xAE00033,
+        
+        ["Shuttered Rift 1"] =  0xAE00040,
+        ["Shuttered Rift 2"] = 0xAE00041,
+        ["Shuttered Rift 3"] = 0xAE00042,
+        ["Shuttered Rift 4"] = 0xAE00043,
+        
+        ["Boost Course 1"] =  0xAE00050,
+        ["Boost Course 2"] = 0xAE00051,
+        ["Boost Course 3"] = 0xAE00052,
+        ["Boost Course 4"] = 0xAE00053,
+    };
 
-
+    public static Sprite SpriteFromPath(string localPath)
+    {
+        Texture2D texture = new Texture2D(256, 256);
+        texture.LoadImage(File.ReadAllBytes(Path.Combine(BepInEx.Paths.PluginPath, localPath)));
+        return Sprite.Create(
+            texture,
+            new Rect(0, 0, texture.width, texture.height),
+            new Vector2(0.5f, 0.5f),
+            pixelsPerUnit: 10
+        );
+    }
+    
 }

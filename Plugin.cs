@@ -4,6 +4,8 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Runtime.ExceptionServices;
+using System.Threading.Tasks;
 using BepInEx;
 using BepInEx.Logging;
 using HarmonyLib;
@@ -18,14 +20,15 @@ using Object = System.Object;
 namespace WKRando;
 
 
-[BepInPlugin("com.wuckle.concsumer.name", "WhiteKnuckleRando", "1.0.0.0")]
+[BepInPlugin("com.wuckle.concsumer.name", "WKRando", "1.0.0")]
 [BepInProcess("White Knuckle.exe")]
 public class Plugin : BaseUnityPlugin
 {
     internal static new ManualLogSource Logger;
-
+    
     public static int LoanAmount = 0;
     public static bool Loaded;
+    
 
     private void Awake()
     {
@@ -42,7 +45,7 @@ public class Plugin : BaseUnityPlugin
 
     //Handles all Update functions
     [HarmonyPatch(typeof(ENT_Player), "Update")]
-    class Update
+    class PlayerUpdate
     {
         static void Prefix(ENT_Player __instance)
         {   
@@ -75,15 +78,13 @@ public class Plugin : BaseUnityPlugin
                     {
                         __instance.RemovePerk("archipelago_buff");
                         __instance.RemovePerk("archipelago_debuff");
-                        if (perkCount >= 0) // wow i love nullables now
+                        if (perkCount >= 0) 
                         {
-                            __instance.AddPerk(__instance.GetPerk("archipelago_debuff") ?? CL_AssetManager.GetPerkAsset("archipelago_debuff"), APItems.TargetAPDebuffCount - perkCount);
+                            __instance.AddPerk(__instance.GetPerk("archipelago_debuff") ?? CL_AssetManager.GetPerkAsset("archipelago_debuff"), APItems.TargetAPDebuffCount);
                         }
                         else if (APItems.TargetAPDebuffCount != 0)
                         {
-                            __instance.AddPerk(
-                                __instance.GetPerk("archipelago_debuff") ??
-                                CL_AssetManager.GetPerkAsset("archipelago_debuff"), APItems.TargetAPDebuffCount);
+                            __instance.AddPerk(__instance.GetPerk("archipelago_debuff") ?? CL_AssetManager.GetPerkAsset("archipelago_debuff"), APItems.TargetAPDebuffCount);
                         }
                     }
                     else
@@ -92,7 +93,7 @@ public class Plugin : BaseUnityPlugin
                         __instance.RemovePerk("archipelago_debuff");
                         if (perkCount <= 0)
                         {
-                            __instance.AddPerk(__instance.GetPerk("archipelago_buff") ?? CL_AssetManager.GetPerkAsset("archipelago_buff"), perkCount - APItems.TargetAPDebuffCount);
+                            __instance.AddPerk(__instance.GetPerk("archipelago_buff") ?? CL_AssetManager.GetPerkAsset("archipelago_buff"), APItems.TargetAPDebuffCount);
                         }
                         else // alternate way to do it cause why not
                         {
@@ -223,6 +224,17 @@ public class Plugin : BaseUnityPlugin
             APItems.TargetAPDebuffCount = result;
         }
 
+        private static void TestPopup(string[] args)
+        {
+            string text = "Test message";
+            if (args.Length >= 1)
+            {
+                text = args[0];
+            }
+            CL_ProgressionManager.ShowUnlockPopup(APItems.SpriteFromPath("WKRando/Assets/Archipelago_Icon.png"), "Test Popup", text, new Color(0f, 1f, 0f));
+
+        }
+
 
         static void Postfix()
         {
@@ -234,6 +246,7 @@ public class Plugin : BaseUnityPlugin
             CommandConsole.BuildCommand("resetapsave", ResetAPSaveData).NotCheat().Description("Deletes the current APSave's data for starting a new archipelago game");
             CommandConsole.BuildCommand("say", ArchipelagoClient.Say).NotCheat().Description("Sends a message to the archipelago client.");
             CommandConsole.BuildCommand("disconnect", DisconnectCommand).NotCheat();
+            CommandConsole.BuildCommand("testpopup", TestPopup).NotCheat();
         }
     }
 
@@ -249,10 +262,11 @@ public class Plugin : BaseUnityPlugin
                 selectablenames.Add(__instance.name);
                 Logger.LogInfo(__instance.name);
             }
-
-            if (APItems.ModeUnlocks.ContainsKey(__instance.name))
+            
+            
+            
+            if (APItems.ModeUnlocks.TryGetValue(__instance.name, out var flag))
             {
-                bool flag = APItems.ModeUnlocks[__instance.name];
                 if ((Object) __instance.unlockIcon != (Object) null)
                     __instance.unlockIcon.gameObject.SetActive(!flag);
                 if ((Object) __instance.group != (Object) null)
@@ -267,6 +281,41 @@ public class Plugin : BaseUnityPlugin
             return true;
         }
         
+    }
+
+    [HarmonyPatch(typeof(Cosmetic_Base), "IsUnlocked")]
+    class PatchCosmeticBaseIsUnlocked
+    {
+        static bool Prefix(ref bool __result)
+        {
+            __result = true;
+            return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(UI_FacilityMenu_Button), "Refresh")]
+    class PatchMainMenuFacilityButtons
+    {
+        static void Postfix(UI_FacilityMenu_Button __instance)
+        {
+            Logger.LogInfo(__instance.upgrade.name);
+            if (!ArchipelagoClient.Connected)
+            {
+                __instance.tooltip.tip = $"<color=red>DISCONNECTED\n</color>Connect to the archipelago server to purchase facility upgrades";
+                __instance.lockRoot.SetActive(true);
+                __instance.isLocked = true;
+            }
+            else
+            {
+                __instance.lockRoot.SetActive(false);
+                __instance.isLocked = false;
+                __instance.icon.gameObject.SetActive(true);
+                __instance.icon.sprite = APItems.SpriteFromPath("WKRando/Assets/Archipelago_Icon.png");
+                
+            }
+        }
+        
+
     }
     
 
@@ -351,14 +400,38 @@ public class Plugin : BaseUnityPlugin
     {
         static bool Prefix(Trinket __instance, ref bool __result)
         {
-            //TODO: block the bindings from rendering
-
+            //TODO: block the bindings from rendering in the first place
             if (APItems.TrinketUnlocks.TryGetValue(__instance.name, out var unlock))
             {
-                __result = unlock;
+                __result = APOptions.EnableAllTrinkets || unlock;
                 return false;
             }
             return true;
+        }
+    }
+
+    [HarmonyPatch(typeof(UI_TrinketPicker))]
+    class PatchPips
+    {
+        //Changes the logic for if you can use the trinket to use the value of TrinketSlots instead
+        [HarmonyPatch("UpdateTrinketActivation")]
+        static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            return new CodeMatcher(instructions).MatchForward(false,
+                    new CodeMatch(OpCodes.Ldc_I4_0),
+                    new CodeMatch(OpCodes.Stloc_0),
+                    new CodeMatch(OpCodes.Ldc_I4_1),
+                    new CodeMatch(OpCodes.Stloc_1))
+                .Advance(2)
+                .SetInstruction(new CodeInstruction(OpCodes.Ldsfld, 
+                    AccessTools.Field(typeof(APOptions),nameof(APOptions.TrinketSlots))))
+                .InstructionEnumeration();
+        }
+        //Extra failsafe 
+        [HarmonyPatch("UpdatePips")]
+        static void Prefix(object[] __args)
+        {
+            __args[0] = APOptions.TrinketSlots;
         }
     }
 
@@ -418,6 +491,8 @@ public class Plugin : BaseUnityPlugin
     [HarmonyPatch(typeof(CL_GameManager), "LoadIn", MethodType.Enumerator)]
     class PatchCommands
     {
+        
+        
         static void Postfix()
         {
             Loaded = true;
@@ -457,7 +532,7 @@ public class Plugin : BaseUnityPlugin
         }
     }
     
-    [HarmonyPatch(typeof(FacilityUpgrade), "Purchase", typeof(StatManager.SaveData.Facility))]
+    [HarmonyPatch(typeof(FacilityUpgrade), "Purchase", typeof(StatManager.SaveData.Facility))] 
     class PatchPurchase
     {
         //Sends the check from the facility upgrade purchase to the client
@@ -477,8 +552,8 @@ public class Plugin : BaseUnityPlugin
             CL_AssetManager.baseDatabase.perkAssets.AddRange([CustomPerks.ApBuff(), CustomPerks.ApDebuff()]);
         }
     }
-    
-    
+
+    private static Dictionary<string, string> _nameToDescription;
     [HarmonyPatch(typeof(App_Facility_Card), "CheckLock")]
     class PatchPerkRefresh
     {
@@ -487,19 +562,130 @@ public class Plugin : BaseUnityPlugin
             if (!ArchipelagoClient.Connected)
             {
                 __instance.lockedObject.SetActive(true);
-                __instance.tooltip.tip = $"<color=red>LOCKED\nDisconnected from Archipelago!</color>\nConnect to purchase upgrades!";
+                __instance.tooltip.tip = "<color=red>LOCKED\nDisconnected from Archipelago!</color>\nConnect to purchase upgrades!";
                 __instance.locked = true;
             }
             else
             {
                 __instance.lockedObject.SetActive(false);
-                __instance.tooltip.tip = __instance.upgrade.description;
                 __instance.locked = false;
+                if (_nameToDescription != null && _nameToDescription.TryGetValue($"{__instance.facility.id} {__instance.upgrade.id}", out string description))
+                {
+                    __instance.tooltip.tip = description.Split("__")[1];
+                    __instance.titleText.SetText(description.Split("__")[0]);
+                    __instance.art.gameObject.SetActive(true);
+                    __instance.art.sprite = APItems.SpriteFromPath("WKRando/Assets/Archipelago_Icon.png");
+                    
+                }
+                else
+                {
+                    __instance.tooltip.tip = "Some archipelago item probably";
+                }
             }
             return false;
         }
     }
+
+    [HarmonyPatch(typeof(App_FacilitySlotHolder), "Start")]
+    class PatchSlotHolder
+    {
+        //Makes the archipelago client request all 
+        static void Prefix(App_FacilitySlotHolder __instance)
+        {
+            if (!ArchipelagoClient.Connected && __instance.window == null)
+                return;
+            Logger.LogInfo("Attempting to scout facility upgrades");
+            Facility facilityAsset = CL_AssetManager.GetFacilityAsset(__instance.window.os.worldInterface.facilityID);
+            List<long> locationsToScout = [];
+            List<string> upgradeNames = [];
+            foreach (FacilityUpgrade n in facilityAsset.GetUpgrades())
+            {
+                if (APItems.FullFacilityUpgradetoAP.TryGetValue($"{facilityAsset.id} {n.id}", out long location))
+                {
+                    locationsToScout.Add(location);
+                    upgradeNames.Add($"{facilityAsset.id} {n.id}");
+                }
+            }
+            List<string> descriptions = Task.Run(async () => await ArchipelagoClient.ScoutItemDescriptionFromID(locationsToScout.ToArray())).GetAwaiter().GetResult();
+            _nameToDescription = upgradeNames.Zip(descriptions, (k,v) => new {k,v}).ToDictionary(x => x.k, x => x.v);
+        }
+    }
+
+    [HarmonyPatch(typeof(MenuManager), "Start")]
+    class PatchChallengeChecks
+    {
+        static void Prefix()
+        {
+            ChallengeQueue();
+        }
+
+        static void ChallengeQueue()
+        {
+            foreach (var t1 in CL_AssetManager.GetFullCombinedAssetDatabase().gamemodeAssets)
+            {
+                if (t1.gamemodeModule.GetType() == typeof(GamemodeModule_Challenge))
+                {
+                    foreach (var t in ((GamemodeModule_Challenge)t1.gamemodeModule).medals)
+                    {
+                        if (t.scoreRequirement < 1f)
+                        {
+                            t.scoreRequirement = 1f;
+                        }
+                    }
+                }
+            }
+
+            foreach (M_Gamemode mode in CL_AssetManager.GetFullCombinedAssetDatabase().gamemodeAssets)
+            {
+                int rank = ChallengeMode.GetMedalRankFromGamemode(mode);
+                for (int i = 0; i < rank; rank--)
+                {
+                    Logger.LogInfo($"Detected medal: {mode.gamemodeName} rank {rank}");
+                    if (APItems.ChallengeMedaltoAPID.TryGetValue($"{mode.gamemodeName} {rank}", out long id) && !APItems.SentLocations.Contains(id))
+                    {
+                        ArchipelagoClient.TryQueueLocation(id);
+                    }
+                }
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(CL_LocalizationManager), "GetLocalization")]
+    class PatchDeathmessage
+    {
+
+        static bool Prefix(ref string __result, object[] __args)
+        {
+            if ((string)__args[0] == "deathmessages" && (string)__args[1] == "archipelagodeath")
+            {
+                __result = ArchipelagoClient.DeathMessage;
+                return false;
+            }
+            return true;
+        }
+    }
     
+    
+    
+    
+
+    public class APOptions
+    {
+        public static int StartingDebuffs = 10;
+        public static int TrinketSlots = 1;
+        public static bool EnableAllTrinkets;
+        public static string GoalArea = "M5_Nest_Trough_Ending_01";
+        
+        public static void UnlockChallenges()
+        {
+            foreach (string mode in APItems.ModeUnlocks.Keys.ToList())
+            {
+                if (mode.Contains("Challenge"))
+                    APItems.ModeUnlocks[mode] = true;
+            }
+        }
+        
+    }
 
         
 }

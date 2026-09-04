@@ -12,6 +12,7 @@ using Archipelago.MultiClient.Net.MessageLog.Messages;
 using Archipelago.MultiClient.Net.Models;
 using HarmonyLib;
 using UnityEngine;
+using Color = UnityEngine.Color;
 
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
 
@@ -23,6 +24,8 @@ public class ArchipelagoClient
     private static string _servername = "localhost:38281";
     private static string _username = string.Empty;
     private static string _password = string.Empty;
+
+    public static string DeathMessage = "Died to Archipelago Player";
     
     private static bool _connectedBefore;
     public static bool Connected;
@@ -43,13 +46,11 @@ public class ArchipelagoClient
     public static async Task<object> Connect(string server = null, string user = null, string pass = null)
     {
         
-        
         if (Connected)
         {
             CommandConsole.Log($"Already connected to server {_servername} as {_username}");
             return null;
         }
-        
         
         Plugin.Logger.LogInfo("Connecting to " + server);
 
@@ -120,6 +121,8 @@ public class ArchipelagoClient
         {
             Plugin.Logger.LogInfo($"Logged Sent Location ID: {item}");
         }
+        
+        FillOptions(loginSuccess.SlotData);
         
         CommandConsole.Log($"Successfully connected to {_servername} as {_username}!");
         CommandConsole.Log($"   Slot Number: {loginSuccess.Slot}");
@@ -227,7 +230,7 @@ public class ArchipelagoClient
             ItemInfo item = _items.Dequeue();
             if (item.Player.Slot == _slot)
             {
-                APItems.UpdateFromId(item.ItemId);
+                APItems.UpdateFromItem(item);
                 CommandConsole.Log($"Received item: {item.ItemDisplayName} from {item.LocationName} in game {item.LocationGame}");
             }
             
@@ -247,8 +250,22 @@ public class ArchipelagoClient
                     return;
                 }
                 _session.Locations.CompleteLocationChecksAsync(_locationsToSend.ToArray());
+                Dictionary<long, ScoutedItemInfo> infos = Task.Run(async () => _session.Locations.ScoutLocationsAsync(_locationsToSend.ToArray())).GetAwaiter().GetResult().Result;
                 foreach (long l in _locationsToSend)
                 {
+                    Plugin.Logger.LogInfo("Sent item");
+                    if (infos[l].Player.Name != _username)
+                        CL_ProgressionManager.ShowUnlockPopup(APItems.SpriteFromPath("WKRando/Assets/Archipelago_Icon.png"), 
+                            $"Sent <color=green>{infos[l].ItemDisplayName}</color>", 
+                            $"for {infos[l].Player} from {infos[l].LocationDisplayName}", 
+                            infos[l].Flags switch
+                            {
+                                ItemFlags.None => new Color(0.2f,0.2f,0.2f),
+                                ItemFlags.Advancement => new Color(0.5f,0.5f,0f),
+                                ItemFlags.NeverExclude => new Color(0.3f,0f,0.5f),
+                                ItemFlags.Trap => new Color(0.5f,0f,0f),
+                                _ => throw new ArgumentOutOfRangeException()
+                            });
                     if (!APItems.SentLocations.Contains(l))
                     {
                         APItems.SentLocations.Add(l);
@@ -290,6 +307,56 @@ public class ArchipelagoClient
             }
         }
     }
+    
+    private static void FillOptions(Dictionary<string, object> slotData)
+    {
+        string slotDataLogger = "";
+        foreach (string I in slotData.Keys)
+        {
+            slotDataLogger += $"{I}: {slotData[I]}\n"; 
+        }
+        Plugin.Logger.LogInfo(slotDataLogger);
+        // done first as otherwise itd not log if there's any error
+        // defaults to the value on the right of the conditional if no key is present
+        Plugin.APOptions.StartingDebuffs = slotData.TryGetValue("Starting_Debuffs", out object value) ? Convert.ToInt32(value) : 10;
+        Plugin.APOptions.TrinketSlots = slotData.TryGetValue("Starting_Trinkets_Slots", out object value1) ? Convert.ToInt32(value1) : 10;
+        Plugin.APOptions.EnableAllTrinkets = slotData.TryGetValue("Enable_Trinket_Randomization", out object value2) && Convert.ToBoolean(value2);
+        Plugin.APOptions.TrinketSlots = slotData.TryGetValue("Starting_Trinkets_Slots", out object value3) ? Convert.ToInt32(value3) : 10;
+        
+        if(slotData.TryGetValue("Challenge_Unlocks", out object value4) && (bool) value4)
+            Plugin.APOptions.UnlockChallenges();
+        
+    }
+    
+
+
+    public static async Task<List<string>> ScoutItemDescriptionFromID(long[] ids)
+    {
+        List<string> output = new List<string>();
+        Dictionary<long, ScoutedItemInfo> scouted = await _session.Locations.ScoutLocationsAsync(false, ids);
+
+        foreach (ScoutedItemInfo info in scouted.Values)
+        {
+            switch (info.Flags)
+            {
+                case ItemFlags.Advancement:
+                    output.Add($"<color=blue>Progression Item</color>__This item is classified as progression to some player in this multiworld");
+                    break;
+                case ItemFlags.NeverExclude:
+                    output.Add($"<color=purple>Useful Item</color>__This item is classified as useful to some player in this multiworld");
+                    break;
+                case ItemFlags.None:
+                    output.Add($"<color=grey>Filler Item</color>__This item is classified as filler for some player in this multiworld");
+                    break;
+                case ItemFlags.Trap:
+                    output.Add($"<color=red>Trap Item</color>__This item is classified as a trap for some player in this multiworld");
+                    break;
+            }
+        }
+
+        return output;
+    }
+    
 
 
 }
