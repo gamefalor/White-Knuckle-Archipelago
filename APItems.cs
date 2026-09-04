@@ -82,10 +82,10 @@ public class APItems
         {
             ProgressionUnlocks[key] = false;
         }
-        foreach (string key in ModeUnlocks.Keys.ToList())
+        /*foreach (string key in ModeUnlocks.Keys.ToList())
         {
             ModeUnlocks[key] = false;
-        }
+        }*///currently unused so
         foreach (string key in TrinketUnlocks.Keys.ToList())
         {
             TrinketUnlocks[key] = false;
@@ -108,12 +108,12 @@ public class APItems
             ProgressionUnlocks[APIDtoProgressionUnlock[id]] = true;
         }
         //Mode Unlock (Challenge, maybe endless eventually)
-        else if (0xADFFFFF >= id & id >= 0xAD00000)
+        else if (0xAEFFFFF >= id & id >= 0xAE00000)
         {
             ModeUnlocks[APIDtoModeUnlock[id]] = true;
         }
-        //Trinket Unlock?
-        else if (0xAEFFFFF >= id & id >= 0xAE00000)
+        //Trinket Unlock
+        else if (0xADFFFFF >= id & id >= 0xAD00000)
         {
             TrinketUnlocks[APIDtoTrinketUnlock[id]] = true;
         }
@@ -227,7 +227,7 @@ public class APItems
         ["CAMPAIGN_INTERLUDE_01 UPG_Ration_T2"] = 0xAA11005,
         ["CAMPAIGN_INTERLUDE_01 UPG_ATM"] = 0xAA11006,
         ["CAMPAIGN_INTERLUDE_01 UPG_Vendor_T1_01"] = 0xAA11007,
-        ["CAMPAIGN_INTERLUDE_01 UPG_Vendor_T1_02"] = 0xAA11008,
+        ["CAMPAIGN_INTERLUDE_01 UPG_Vendor_T2_01"] = 0xAA11008,
         
         ["CAMPAIGN_INTERLUDE_02 UPG_Recycler"] = 0xAA12000,
         ["CAMPAIGN_INTERLUDE_02 UPG_ItemLocker_01"] = 0xAA12001,
@@ -711,26 +711,26 @@ public class APItems
 
     public static Dictionary<long, string> APIDtoModeUnlock = new Dictionary<long, string>()
     {
-        [0xAD00000] = "Mode Selection Button - Campaign Variant",
-        [0xAD00001] = "Mode Selection Button - Training Sector",
-        [0xAD00002] = "Mode Selection Button - Endless",
-        [0xAD00003] = "Mode Selection Button - Endless Underworks",
-        [0xAD00004] = "Mode Selection Button - Endless Superstructure",
-        [0xAD00005] = "Mode Selection Button - Silos",
-        [0xAD00006] = "Mode Selection Button - Pipeworks",
-        [0xAD00007] = "Mode Selection Button - Habitation",
-        [0xAD00008] = "Mode Selection Button - Abyss",
-        [0xAD00009] = "Mode Selection Button - Nest",
+        [0xAE00000] = "Mode Selection Button - Campaign Variant",
+        [0xAE00001] = "Mode Selection Button - Training Sector",
+        [0xAE00002] = "Mode Selection Button - Endless",
+        [0xAE00003] = "Mode Selection Button - Endless Underworks",
+        [0xAE00004] = "Mode Selection Button - Endless Superstructure",
+        [0xAE00005] = "Mode Selection Button - Silos",
+        [0xAE00006] = "Mode Selection Button - Pipeworks",
+        [0xAE00007] = "Mode Selection Button - Habitation",
+        [0xAE00008] = "Mode Selection Button - Abyss",
+        [0xAE00009] = "Mode Selection Button - Nest",
         
-        [0xAD0000A] = "Mode Selection Button - Challenge 01 - Advanced Course",
-        [0xAD0000B] = "Mode Selection Button - Challenge 02 - Shattered",
-        [0xAD0000C] = "Mode Selection Button - Challenge 03 - Roach Run",
-        [0xAD0000E] = "Mode Selection Button - Challenge 04 - Comms",
-        [0xAD0000F] = "Mode Selection Button - Challenge 05 - Shutter",
-        [0xAD00010] = "Mode Selection Button - Challenge 06 - Boost",
+        [0xAE0000A] = "Mode Selection Button - Challenge 01 - Advanced Course",
+        [0xAE0000B] = "Mode Selection Button - Challenge 02 - Shattered",
+        [0xAE0000C] = "Mode Selection Button - Challenge 03 - Roach Run",
+        [0xAE0000E] = "Mode Selection Button - Challenge 04 - Comms",
+        [0xAE0000F] = "Mode Selection Button - Challenge 05 - Shutter",
+        [0xAE00010] = "Mode Selection Button - Challenge 06 - Boost",
         
-        [0xAD00011] = "Mode Selection Button - Chimney",
-        [0xAD00012] = "Mode Selection Button - Parasite.01"
+        [0xAE00011] = "Mode Selection Button - Chimney",
+        [0xAE00012] = "Mode Selection Button - Parasite.01"
     };
     
     public static Dictionary<string, bool> TrinketUnlocks = new Dictionary<string, bool>()
