@@ -43,5 +43,5 @@ class WKWorld(World):
 
     def fill_slot_data(self) -> Mapping[str, Any]:
         return self.options.as_dict(
-            "Starting_Debuffs"
+            "deathlink", "deathlink_amnesty", "Starting_Debuffs"
         )

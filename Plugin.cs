@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.ExceptionServices;
 using System.Threading.Tasks;
+using Archipelago.MultiClient.Net.BounceFeatures.DeathLink;
 using BepInEx;
 using BepInEx.Logging;
 using HarmonyLib;
@@ -40,6 +41,12 @@ public class Plugin : BaseUnityPlugin
 
 
         harmony.PatchAll(Assembly.GetExecutingAssembly());
+
+        if (!File.Exists($"{Application.persistentDataPath}\\Archipelago\\ClientOptions.json"))
+        {
+            File.Create($"{Application.persistentDataPath}\\Archipelago\\ClientOptions.json");
+        }
+
         Logger.LogInfo($"BasicPlugin Loaded");
     }
 
@@ -235,6 +242,41 @@ public class Plugin : BaseUnityPlugin
 
         }
 
+        private static void ChangeClientSettings(string[] args)
+        {
+            for (int i  = 0; i < args.Length - 1; i++)
+            {
+                try
+                {
+                    switch (args[i].ToLower().Replace('-','_')) //hehe, lil faces
+                    {
+                        case "deathlink":
+                            Logger.LogInfo($"deathlink...");
+                            if (args[i + 1] == "amnesty")
+                            {
+                                ClientOptions.deathlink_amnesty = Convert.ToInt32(args[i + 2]);
+                                Logger.LogInfo($"setting deathlink amnesty to {args[i + 2]}");
+                                CommandConsole.Log($"setting deathlink amnesty to {args[i + 2]}");
+                            }
+                            else
+                            {
+                                if (Convert.ToBoolean(args[i + 1])) { ClientOptions.EnableDeathlink(); }
+                                else if (!Convert.ToBoolean(args[i + 1])) { ClientOptions.DisableDeathlink(); }
+                                Logger.LogInfo($"setting deathlink to {args[i + 1]}");
+                                CommandConsole.Log($"setting deathlink to {args[i + 1]}");
+                            }
+                            break;
+                            
+                        case "deathlink_amnesty":
+                            ClientOptions.deathlink_amnesty = Convert.ToInt32(args[i + 1]);
+                            Logger.LogInfo($"setting deathlink amnesty to {args[i + 1]}");
+                            CommandConsole.Log($"setting deathlink amnesty to {args[i + 1]}");
+                            break;
+                    }
+                } catch { }
+            }
+            ClientOptions.SaveOptions();
+        }
 
         static void Postfix()
         {
@@ -247,6 +289,9 @@ public class Plugin : BaseUnityPlugin
             CommandConsole.BuildCommand("say", ArchipelagoClient.Say).NotCheat().Description("Sends a message to the archipelago client.");
             CommandConsole.BuildCommand("disconnect", DisconnectCommand).NotCheat();
             CommandConsole.BuildCommand("testpopup", TestPopup).NotCheat();
+            CommandConsole.BuildCommand("ResetClientOptions", ArchipelagoClient.SetClientOptions).NotCheat().Description("Resets your client options back to what is listed in the yaml");
+            CommandConsole.BuildCommand("ListClientOptions", ClientOptions.ListClientSettings).NotCheat().Description("Lists all options in the client settings, that can be set by the player in the client");
+            CommandConsole.BuildCommand("ChangeClientOptions", ChangeClientSettings).NotCheat().Description("Changes options, use ListOptions to get a list of the ones you can change, spaces and both dashes work");
         }
     }
 
@@ -492,7 +537,6 @@ public class Plugin : BaseUnityPlugin
     class PatchCommands
     {
         
-        
         static void Postfix()
         {
             Loaded = true;
@@ -687,5 +731,45 @@ public class Plugin : BaseUnityPlugin
         
     }
 
-        
+    
+
+    // contains all information that will be written to in the client
+    // stored in the datastorage path in a json format
+    // C:\Users\X\AppData\LocalLow\Dark Machine\White Knuckle\Archipelago\ClientOptions.json
+    // file only appears if its detected to be missing during awake
+
+    public static CLoptions ClientOptions = new();
+    public class CLoptions
+    {
+        public bool deathlink; // need to be simple fields for jsonutility to work
+        public int deathlink_amnesty; // if you need to change that they have get/set youd need to move to a different json library
+
+        public void EnableDeathlink()
+        {
+            deathlink = true;
+            ArchipelagoClient._deathlinkservice.EnableDeathLink();
+        }
+        public void DisableDeathlink()
+        {
+            deathlink = false;
+            ArchipelagoClient._deathlinkservice.DisableDeathLink();
+        }        
+
+        public void SaveOptions()
+        {
+            File.WriteAllText($"{Application.persistentDataPath}\\Archipelago\\ClientOptions.json", JsonUtility.ToJson(ClientOptions));
+            Logger.LogInfo($"saving client options as {JsonUtility.ToJson(ClientOptions)}");
+        }
+        public void LoadOptions()
+        {
+            string jsonString = File.ReadAllText($"{Application.persistentDataPath}\\Archipelago\\ClientOptions.json");
+            Logger.LogInfo($"loading client options as: {jsonString}");
+            ClientOptions = JsonUtility.FromJson<CLoptions>(jsonString);
+        }
+        // left here so people dont forget to update it
+        public void ListClientSettings(string[] args)
+        {
+            CommandConsole.Log($"Deathlink: {deathlink} \nDeathlink Amnesty: {deathlink_amnesty}");
+        }
+    }   
 }
