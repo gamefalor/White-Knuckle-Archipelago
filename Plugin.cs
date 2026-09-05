@@ -42,6 +42,11 @@ public class Plugin : BaseUnityPlugin
 
         harmony.PatchAll(Assembly.GetExecutingAssembly());
 
+        if (!Directory.Exists($"{Application.persistentDataPath}\\Archipelago"))
+        {
+            Directory.CreateDirectory(Path.Combine(Application.persistentDataPath, "Archipelago"));
+        }
+
         if (!File.Exists($"{Application.persistentDataPath}\\Archipelago\\ClientOptions.json"))
         {
             File.Create($"{Application.persistentDataPath}\\Archipelago\\ClientOptions.json");
@@ -277,6 +282,15 @@ public class Plugin : BaseUnityPlugin
             }
             ClientOptions.SaveOptions();
         }
+        
+        private static void TestArchipelagoDeath(string[] args)
+        {
+            if (args.Length >= 1)
+            {
+                ArchipelagoClient.DeathMessage = string.Join(" ", args);
+            }
+            ENT_Player.playerObject.Kill("deathlink");
+        }
 
         static void Postfix()
         {
@@ -292,6 +306,7 @@ public class Plugin : BaseUnityPlugin
             CommandConsole.BuildCommand("ResetClientOptions", ArchipelagoClient.SetClientOptions).NotCheat().Description("Resets your client options back to what is listed in the yaml");
             CommandConsole.BuildCommand("ListClientOptions", ClientOptions.ListClientSettings).NotCheat().Description("Lists all options in the client settings, that can be set by the player in the client");
             CommandConsole.BuildCommand("ChangeClientOptions", ChangeClientSettings).NotCheat().Description("Changes options, use ListOptions to get a list of the ones you can change, spaces and both dashes work");
+            CommandConsole.BuildCommand("TestArchipelagoDeath", TestArchipelagoDeath).Description("Kills the player with the specified death message");
         }
     }
 
@@ -700,7 +715,7 @@ public class Plugin : BaseUnityPlugin
 
         static bool Prefix(ref string __result, object[] __args)
         {
-            if ((string)__args[0] == "deathmessages" && (string)__args[1] == "archipelagodeath")
+            if ((string)__args[0] == "deathmessages" && (string)__args[1] == "deathlink")
             {
                 __result = ArchipelagoClient.DeathMessage;
                 return false;
